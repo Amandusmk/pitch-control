@@ -1,8 +1,10 @@
 """Tests for pitchcontrol.kinematics: velocity units, glitch removal and gap rules."""
 import numpy as np
+import pandas as pd
 import pytest
 
 from pitchcontrol.kinematics import (
+    add_kinematics,
     drop_implausible_steps,
     fill_short_gaps,
     smooth_and_differentiate,
@@ -54,3 +56,29 @@ def test_fill_short_gaps_refuses_to_draw_a_line_across_a_jump():
     x = np.array([0.0, np.nan, np.nan, 20.0])
     out, _ = fill_short_gaps(x, np.where(np.isnan(x), np.nan, 0.0), max_gap=5)
     assert np.isnan(out[1:3]).all()
+
+
+def test_trim_edges_blanks_half_a_window_at_each_end_of_a_stretch():
+    i = np.arange(20)
+    _, _, vx, _ = smooth_and_differentiate(0.08 * i, 0.0 * i, window=7, polyorder=2,
+                                           dt=DT, trim_edges=True)
+    assert np.isnan(vx[:3]).all() and np.isnan(vx[-3:]).all()   # window 7 -> 3 frames each end
+    assert vx[3:17] == pytest.approx(2.0)
+
+
+def test_add_kinematics_adds_player_velocities_per_half_and_leaves_the_ball_alone():
+    n = 30
+    frame = np.arange(2 * n)
+    tracking = pd.DataFrame({
+        "period": [1] * n + [2] * n, "frame": frame, "time_s": frame * 0.04,
+        "Home_Player1_x": 0.08 * frame, "Home_Player1_y": np.zeros(2 * n),
+        "ball_x": np.zeros(2 * n), "ball_y": np.zeros(2 * n),
+    })
+    out = add_kinematics(tracking)
+    vx = out["Home_Player1_vx"].to_numpy()
+    for half in (slice(0, n), slice(n, 2 * n)):             # each half filtered separately
+        h = vx[half]
+        assert np.isnan(h[:6]).all() and np.isnan(h[-6:]).all()   # window 13 -> 6 frames trimmed
+        assert h[6:-6] == pytest.approx(2.0)
+    assert "ball_vx" not in out.columns
+    assert "Home_Player1_vx" not in tracking.columns         # input not mutated
