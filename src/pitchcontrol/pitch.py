@@ -89,6 +89,6 @@ def plot_frame(row, ax=None):
             ax.scatter(x, y, s=140, color=colour, edgecolor="white", zorder=3)
             ax.annotate(name.replace("Player", ""), (x, y), ha="center", va="center",
                         fontsize=7, color="white", zorder=4)
-    if not np.isnan(row["ball_x"]):
+    if not (np.isnan(row["ball_x"]) or np.isnan(row["ball_y"])):
         ax.scatter(row["ball_x"], row["ball_y"], s=50, color="black", edgecolor="white", zorder=5)
     return ax

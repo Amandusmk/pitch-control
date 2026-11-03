@@ -30,6 +30,7 @@ def main(second_half_frame):
         ax.set_title(f"Game 1, frame {frame} (period {int(row['period'])}, t={row['time_s']:.2f} s)"
                      " - home red, away blue; home attacks right")
     out = ROOT / "outputs" / "figures" / "frames_check.png"
+    out.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out, dpi=110, bbox_inches="tight")
     print(out)
 

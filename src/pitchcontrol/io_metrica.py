@@ -11,9 +11,8 @@ from pathlib import Path
 
 import pandas as pd
 
-from pitchcontrol.coords import rotate_half_turn, to_metres
+from pitchcontrol.coords import to_metres
 
-TRACKING_FRAME_RATE_HZ = 25.0
 _LEAD_COLUMNS = ["period", "frame", "time_s"]
 _EVENT_COLUMNS = {
     "Team": "team", "Type": "type", "Subtype": "subtype", "Period": "period",
@@ -72,10 +71,21 @@ def orient_home_attacks_right(df):
 
 
 def read_tracking_team(path, team):
-    """Read one team's raw tracking CSV; positions stay in Metrica [0, 1] units."""
+    """Read one team's raw tracking CSV; positions stay in Metrica [0, 1] units.
+
+    Args:
+        path: Metrica tracking CSV for one team.
+        team: 'Home' or 'Away', used as the column-name prefix.
+
+    Raises:
+        ValueError: if the file has more or fewer columns than its header names.
+    """
     header = pd.read_csv(path, header=None, nrows=3)
     names = _tracking_column_names(header.iloc[2].tolist(), team)
-    return pd.read_csv(path, header=None, skiprows=3, names=names)
+    data = pd.read_csv(path, header=None, skiprows=3, names=names)
+    if data.shape[1] != len(names) or not isinstance(data.index, pd.RangeIndex):
+        raise ValueError(f"{path}: columns do not match the header ({len(names)} names)")
+    return data
 
 
 def load_tracking(game_dir):
@@ -88,6 +98,8 @@ def load_tracking(game_dir):
     game_dir = Path(game_dir)
     home = read_tracking_team(game_dir / "Sample_Game_1_RawTrackingData_Home_Team.csv", "Home")
     away = read_tracking_team(game_dir / "Sample_Game_1_RawTrackingData_Away_Team.csv", "Away")
+    if not home[["period", "frame"]].equals(away[["period", "frame"]]):
+        raise ValueError("home and away tracking files do not cover the same frames")
     away = away.drop(columns=_LEAD_COLUMNS + ["ball_x", "ball_y"])
     merged = pd.concat([home, away], axis=1)
     x_cols = [c for c in merged.columns if c.endswith("_x")]
@@ -103,7 +115,4 @@ def load_events(path):
     ev = pd.read_csv(path).rename(columns=_EVENT_COLUMNS)
     for prefix in ("start", "end"):
         ev[f"{prefix}_x"], ev[f"{prefix}_y"] = to_metres(ev[f"{prefix}_x"], ev[f"{prefix}_y"])
-    second_half = ev["period"] == 2
-    cols = ["start_x", "start_y", "end_x", "end_y"]
-    ev.loc[second_half, cols] = -ev.loc[second_half, cols]
-    return ev
+    return orient_home_attacks_right(ev)

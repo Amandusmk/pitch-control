@@ -32,17 +32,3 @@ def to_metres(x_norm, y_norm):
     y = (0.5 - np.asarray(y_norm, dtype=float)) * PITCH_WIDTH_M
     return x, y
 
-
-def rotate_half_turn(x, y):
-    """Rotate positions by 180 degrees about the centre spot (x, y) -> (-x, -y).
-
-    Used to make both halves share one attacking direction: teams swap ends at
-    half-time, so rotating the second-half data restores the first-half sides.
-
-    Args:
-        x, y: positions in metres, origin at the centre (scalar or array).
-
-    Returns:
-        (-x, -y) in metres. NaN stays NaN.
-    """
-    return -np.asarray(x, dtype=float), -np.asarray(y, dtype=float)

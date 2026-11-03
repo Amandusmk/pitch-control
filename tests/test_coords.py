@@ -2,7 +2,7 @@
 import numpy as np
 import pytest
 
-from pitchcontrol.coords import rotate_half_turn, to_metres
+from pitchcontrol.coords import to_metres
 
 
 def test_centre_and_corners_map_to_metres_with_y_up():
@@ -19,8 +19,3 @@ def test_missing_values_stay_nan():
     assert np.isnan(x[0]) and np.isnan(y[1])
     assert x[1] == 0.0 and y[0] == 0.0
 
-
-def test_rotate_half_turn_negates_both_axes():
-    x, y = rotate_half_turn(np.array([10.0, -3.0]), np.array([5.0, 20.0]))
-    assert x == pytest.approx([-10.0, 3.0])
-    assert y == pytest.approx([-5.0, -20.0])

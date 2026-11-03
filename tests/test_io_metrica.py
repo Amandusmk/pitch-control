@@ -46,3 +46,13 @@ def test_events_are_in_metres_and_oriented():
     assert passes["start_x"].abs().max() <= 52.5 + margin
     assert passes["start_y"].abs().max() <= 34.0 + margin
     assert (passes["period"].isin([1, 2])).all()
+
+
+@needs_data
+def test_second_half_event_is_rotated_relative_to_the_raw_file():
+    # A period 2 event must equal the rotated conversion of its raw value (sign check).
+    raw = pd.read_csv(GAME1 / "Sample_Game_1_RawEventsData.csv")
+    ev = load_events(GAME1 / "Sample_Game_1_RawEventsData.csv")
+    i = raw.index[(raw["Period"] == 2) & raw["Start X"].notna()][0]
+    assert ev.loc[i, "start_x"] == pytest.approx(-(raw.loc[i, "Start X"] - 0.5) * 105.0)
+    assert ev.loc[i, "start_y"] == pytest.approx(-(0.5 - raw.loc[i, "Start Y"]) * 68.0)
