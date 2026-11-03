@@ -38,14 +38,23 @@ def _arrival_probability(t, arrival_times, sigma):
     return expit(np.pi / (np.sqrt(3.0) * sigma) * (t - arrival_times))
 
 
-def _validate(arrival_times, is_team_a, sigma, lambdas, dt):
-    """Raise ValueError for inputs that would make the integration meaningless or unstable."""
-    if arrival_times.ndim != 2 or len(is_team_a) != arrival_times.shape[0]:
-        raise ValueError("arrival_times must be (players, points) matching is_team_a")
+def _check_arrivals(arrival_times, is_team_a):
+    """Raise ValueError unless arrival_times is a finite (players, points) array matching is_team_a."""
+    if (arrival_times.ndim != 2 or arrival_times.shape[0] == 0
+            or len(is_team_a) != arrival_times.shape[0]):
+        raise ValueError("arrival_times must be (players, points) with at least one player, "
+                         "matching is_team_a")
     if not np.isfinite(arrival_times).all():
         raise ValueError("arrival_times must be finite; drop players who are off the pitch")
-    if sigma <= 0 or dt <= 0 or np.any(lambdas <= 0):
-        raise ValueError("sigma, dt and lambdas must be positive")
+
+
+def _validate(arrival_times, is_team_a, sigma, lambdas, dt, ball_time):
+    """Raise ValueError for inputs that would make the integration meaningless."""
+    _check_arrivals(arrival_times, is_team_a)
+    if not (sigma > 0 and dt > 0 and np.isfinite(ball_time)):
+        raise ValueError("sigma and dt must be positive and ball_time finite")
+    if lambdas.shape != (len(is_team_a),) or not np.all(lambdas > 0):
+        raise ValueError("lambdas must be positive with one value per player")
 
 
 def spearman_control(arrival_times, is_team_a, sigma, lambdas, ball_time, dt=DEFAULT_DT_S):
@@ -67,7 +76,7 @@ def spearman_control(arrival_times, is_team_a, sigma, lambdas, ball_time, dt=DEF
     tau = np.asarray(arrival_times, dtype=float)
     is_team_a = np.asarray(is_team_a, dtype=bool)
     lambdas = np.asarray(lambdas, dtype=float)
-    _validate(tau, is_team_a, sigma, lambdas, dt)
+    _validate(tau, is_team_a, sigma, lambdas, dt, ball_time)
     rate = lambdas[:, None]
     control = np.zeros_like(tau)
     t = ball_time
@@ -78,7 +87,7 @@ def spearman_control(arrival_times, is_team_a, sigma, lambdas, ball_time, dt=DEF
             break
         weight = _arrival_probability(t, tau, sigma) * rate        # f_i * lambda_i, 1/s
         total_rate = weight.sum(axis=0)                            # S, 1/s
-        gained = residual * (1.0 - np.exp(-total_rate * dt))       # fraction controlled this step
+        gained = residual * -np.expm1(-total_rate * dt)            # fraction controlled this step
         share = np.divide(weight, total_rate, out=np.zeros_like(weight), where=total_rate > 0)
         control = control + share * gained
         t += dt
@@ -99,6 +108,9 @@ def baseline_control(arrival_times, is_team_a, s):
     """
     tau = np.asarray(arrival_times, dtype=float)
     is_team_a = np.asarray(is_team_a, dtype=bool)
+    _check_arrivals(tau, is_team_a)
+    if not s > 0:
+        raise ValueError("s must be positive")
     fastest_a = np.min(tau[is_team_a], axis=0, initial=np.inf)
     fastest_b = np.min(tau[~is_team_a], axis=0, initial=np.inf)
     control_a = expit((fastest_b - fastest_a) / s)

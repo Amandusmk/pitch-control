@@ -12,6 +12,7 @@ import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+import numpy as np
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
@@ -22,7 +23,7 @@ from pitchcontrol.pitch import plot_frame  # noqa: E402
 from pitchcontrol.surface import PUBLISHED_PARAMETERS, frame_control, make_grid  # noqa: E402
 
 DEFAULT_FRAME = 20000
-GRID_STEP_M = 2.0
+GRID_STEP_M = 1.0              # must divide both 105 and 68 exactly
 REFERENCE = {**PUBLISHED_PARAMETERS, "ball_time": 0.0}
 VARIATIONS = [
     ("reference (Spearman 2018)", {}),
@@ -35,15 +36,20 @@ VARIATIONS = [
 
 
 def draw_panel(ax, row, xs, ys, points, overrides, title):
-    """Draw one control surface with the players on top; return the home share (0-1)."""
+    """Draw one control surface with the players on top; return the home share (0-1).
+
+    The share is the mean of home / (home + away), so the small part of each point left
+    uncontrolled when the integration stops does not bias it.
+    """
     params = {**REFERENCE, **overrides}
-    home, _ = frame_control(row, points, **params)
+    home, away = frame_control(row, points, **params)
     surface = home.reshape(len(ys), len(xs))
-    ax.imshow(surface, origin="lower", extent=[xs[0] - GRID_STEP_M / 2, xs[-1] + GRID_STEP_M / 2,
-                                               ys[0] - GRID_STEP_M / 2, ys[-1] + GRID_STEP_M / 2],
+    half_x, half_y = (xs[1] - xs[0]) / 2, (ys[1] - ys[0]) / 2
+    ax.imshow(surface, origin="lower", extent=[xs[0] - half_x, xs[-1] + half_x,
+                                               ys[0] - half_y, ys[-1] + half_y],
               cmap="RdBu_r", vmin=0, vmax=1, alpha=0.75, zorder=0)
     plot_frame(row, ax)
-    share = float(surface.mean())
+    share = float(np.mean(home / (home + away)))
     ax.set_title(f"{title}\nhome controls {100 * share:.0f}% of the pitch", fontsize=9)
     return share
 

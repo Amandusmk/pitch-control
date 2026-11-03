@@ -4,6 +4,8 @@ Pipeline for one frame: players on the pitch -> time to intercept for each grid
 point (pitchcontrol.intercept) -> Spearman time-integrated control
 (pitchcontrol.control). All parameters are required arguments; none are defaulted.
 """
+from types import MappingProxyType
+
 import numpy as np
 
 from pitchcontrol.control import spearman_control
@@ -15,21 +17,32 @@ from pitchcontrol.pitch import team_positions
 # the project owner as the fixed, a-priori values: NOT tuned on this project's data.
 # Quoted from memory; verify against the paper before citing.
 #   v_max 5 m/s, t_react 0.7 s, sigma 0.45 s, lambda 4.3 per s (one value for all players).
-PUBLISHED_PARAMETERS = {"v_max": 5.0, "t_react": 0.7, "sigma": 0.45, "lambda_per_s": 4.3}
+PUBLISHED_PARAMETERS = MappingProxyType(
+    {"v_max": 5.0, "t_react": 0.7, "sigma": 0.45, "lambda_per_s": 4.3})
 
 
 def make_grid(step_m):
     """Cell-centred grid covering the 105 x 68 m pitch.
 
     Args:
-        step_m: grid spacing in metres (must divide the pitch reasonably evenly).
+        step_m: grid spacing in metres. It must divide both 105 and 68 exactly, so
+            in practice 1.0 or 0.5 (105 and 68 share no larger common divisor).
 
     Returns:
         (xs, ys, points): 1-D x and y centres in metres, and (len(ys) * len(xs), 2)
         points ordered row by row, so values reshape to (len(ys), len(xs)).
+
+    Raises:
+        ValueError: if step_m does not divide the pitch exactly (cells would be dropped).
     """
-    xs = np.arange(-PITCH_LENGTH_M / 2 + step_m / 2, PITCH_LENGTH_M / 2, step_m)
-    ys = np.arange(-PITCH_WIDTH_M / 2 + step_m / 2, PITCH_WIDTH_M / 2, step_m)
+    counts = []
+    for length in (PITCH_LENGTH_M, PITCH_WIDTH_M):
+        cells = length / step_m
+        if step_m <= 0 or not np.isclose(cells, round(cells)):
+            raise ValueError(f"step_m={step_m} does not divide the {length} m side exactly")
+        counts.append(int(round(cells)))
+    xs = -PITCH_LENGTH_M / 2 + step_m / 2 + step_m * np.arange(counts[0])
+    ys = -PITCH_WIDTH_M / 2 + step_m / 2 + step_m * np.arange(counts[1])
     grid_x, grid_y = np.meshgrid(xs, ys)
     return xs, ys, np.column_stack([grid_x.ravel(), grid_y.ravel()])
 
@@ -44,8 +57,7 @@ def _players_on_pitch(row):
     for team in ("Home", "Away"):
         for name, xy in team_positions(row, team).items():
             positions.append(xy)
-            velocities.append((row.get(f"{team}_{name}_vx", np.nan),
-                               row.get(f"{team}_{name}_vy", np.nan)))
+            velocities.append((row[f"{team}_{name}_vx"], row[f"{team}_{name}_vy"]))
             is_home.append(team == "Home")
     return np.array(positions), np.array(velocities, dtype=float), np.array(is_home)
 
@@ -66,6 +78,8 @@ def frame_control(row, points, v_max, t_react, sigma, lambda_per_s, ball_time):
         (home_control, away_control): (G,) arrays in [0, 1].
     """
     positions, velocities, is_home = _players_on_pitch(row)
+    if len(is_home) == 0:
+        raise ValueError("no players on the pitch in this frame")
     arrival = time_to_intercept(positions, velocities, points, v_max, t_react)
     lambdas = np.full(len(is_home), lambda_per_s)
     return spearman_control(arrival, is_home, sigma, lambdas, ball_time)

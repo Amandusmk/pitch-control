@@ -20,8 +20,8 @@ def time_to_intercept(positions, velocities, targets, v_max, t_react):
 
     Args:
         positions: (N, 2) player positions in metres.
-        velocities: (N, 2) player velocities in m/s. NaN (unknown) is treated as
-            standing still, so that player's projection p' equals p.
+        velocities: (N, 2) player velocities in m/s. If either component is NaN
+            (unknown), the player is treated as standing still, so p' equals p.
         targets: (G, 2) target points in metres.
         v_max: shared top speed in m/s (must be positive).
         t_react: shared reaction time in seconds (must be non-negative).
@@ -29,10 +29,14 @@ def time_to_intercept(positions, velocities, targets, v_max, t_react):
     Returns:
         (N, G) array of times in seconds.
     """
-    if v_max <= 0 or t_react < 0:
+    if not (v_max > 0 and t_react >= 0):
         raise ValueError("v_max must be positive and t_react non-negative")
     positions = np.asarray(positions, dtype=float)
-    velocities = np.nan_to_num(np.asarray(velocities, dtype=float), nan=0.0)
+    velocities = np.asarray(velocities, dtype=float)
+    if positions.shape != velocities.shape:
+        raise ValueError("positions and velocities must have the same (N, 2) shape")
+    unknown = np.isnan(velocities).any(axis=1, keepdims=True)    # either component missing
+    velocities = np.where(unknown, 0.0, velocities)
     targets = np.asarray(targets, dtype=float)
     projected = positions + velocities * t_react                       # (N, 2) m
     distance = np.linalg.norm(targets[None, :, :] - projected[:, None, :], axis=2)  # (N, G) m

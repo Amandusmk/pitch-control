@@ -48,3 +48,23 @@ def test_baseline_is_even_when_tied_and_decisive_when_one_team_is_far_faster():
     assert p_a[0] == pytest.approx(0.5, abs=1e-9) and p_b[0] == pytest.approx(0.5, abs=1e-9)
     assert p_a[2] > 0.99
     assert (p_a + p_b) == pytest.approx(1.0)
+
+
+def test_a_later_ball_arrival_lets_a_slower_team_contest_the_point():
+    # Team A arrives at 2 s, team B at 5 s. If the ball is there at 0 s, A takes the point
+    # before B arrives; if the ball only arrives at 5 s, B has arrived too and shares it.
+    arrival = [[2.0], [5.0]]
+    early_a, early_b = _run(arrival, [True, False], ball_time=0.0)
+    late_a, late_b = _run(arrival, [True, False], ball_time=5.0)
+    assert early_b[0] < 0.05
+    assert late_b[0] > early_b[0] + 0.2 and late_a[0] > late_b[0]
+    assert late_a[0] + late_b[0] > 0.99
+
+
+def test_nan_inputs_are_rejected_instead_of_returning_zero_control():
+    arrival = np.array([[2.0], [3.0]])
+    lambdas = np.full(2, LAMBDA_PER_S)
+    with pytest.raises(ValueError):
+        spearman_control(arrival, np.array([True, False]), SIGMA_S, lambdas, float("nan"))
+    with pytest.raises(ValueError):
+        baseline_control(np.array([[np.nan], [3.0]]), np.array([True, False]), s=1.0)

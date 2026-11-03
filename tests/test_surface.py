@@ -26,3 +26,9 @@ def test_control_favours_the_nearer_team_is_symmetric_and_ignores_absent_players
     home, away = frame_control(row, points, **PARAMS)
     assert home[0] > 0.9 and away[2] > 0.9
     assert home[1] == pytest.approx(0.5, abs=0.01) and away[1] == pytest.approx(0.5, abs=0.01)
+
+
+def test_grid_rejects_a_step_that_would_silently_drop_part_of_the_pitch():
+    # 2 m does not divide 105 m: the last 1 m strip would be missing.
+    with pytest.raises(ValueError):
+        make_grid(step_m=2.0)
