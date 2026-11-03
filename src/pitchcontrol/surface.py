@@ -8,7 +8,7 @@ from types import MappingProxyType
 
 import numpy as np
 
-from pitchcontrol.control import spearman_control
+from pitchcontrol.control import baseline_control, spearman_control
 from pitchcontrol.coords import PITCH_LENGTH_M, PITCH_WIDTH_M
 from pitchcontrol.intercept import time_to_intercept
 from pitchcontrol.pitch import team_positions
@@ -77,9 +77,31 @@ def frame_control(row, points, v_max, t_react, sigma, lambda_per_s, ball_time):
     Returns:
         (home_control, away_control): (G,) arrays in [0, 1].
     """
+    arrival, is_home = _frame_arrivals(row, points, v_max, t_react)
+    lambdas = np.full(len(is_home), lambda_per_s)
+    return spearman_control(arrival, is_home, sigma, lambdas, ball_time)
+
+
+def frame_baseline(row, points, v_max, t_react, s):
+    """Baseline home and away control at each point for one frame (no ball time).
+
+    Uses the same time-to-intercept as frame_control, then the logistic of the
+    difference between each team's fastest arrival (see control.baseline_control).
+
+    Args:
+        row, points, v_max, t_react: as in frame_control.
+        s: logistic scale in seconds.
+
+    Returns:
+        (home_control, away_control): (G,) arrays that sum to 1.
+    """
+    arrival, is_home = _frame_arrivals(row, points, v_max, t_react)
+    return baseline_control(arrival, is_home, s)
+
+
+def _frame_arrivals(row, points, v_max, t_react):
+    """Arrival times (N, G) in seconds and a home flag (N,) for the players in this frame."""
     positions, velocities, is_home = _players_on_pitch(row)
     if len(is_home) == 0:
         raise ValueError("no players on the pitch in this frame")
-    arrival = time_to_intercept(positions, velocities, points, v_max, t_react)
-    lambdas = np.full(len(is_home), lambda_per_s)
-    return spearman_control(arrival, is_home, sigma, lambdas, ball_time)
+    return time_to_intercept(positions, velocities, points, v_max, t_react), is_home
