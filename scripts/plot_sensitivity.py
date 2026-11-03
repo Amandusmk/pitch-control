@@ -19,11 +19,11 @@ sys.path.insert(0, str(ROOT / "src"))
 from pitchcontrol.io_metrica import load_tracking  # noqa: E402
 from pitchcontrol.kinematics import add_kinematics  # noqa: E402
 from pitchcontrol.pitch import plot_frame  # noqa: E402
-from pitchcontrol.surface import frame_control, make_grid  # noqa: E402
+from pitchcontrol.surface import PUBLISHED_PARAMETERS, frame_control, make_grid  # noqa: E402
 
 DEFAULT_FRAME = 20000
 GRID_STEP_M = 2.0
-REFERENCE = {"v_max": 5.0, "t_react": 0.7, "sigma": 0.45, "lambda_per_s": 4.3, "ball_time": 0.0}
+REFERENCE = {**PUBLISHED_PARAMETERS, "ball_time": 0.0}
 VARIATIONS = [
     ("reference (Spearman 2018)", {}),
     ("faster players: v_max 7", {"v_max": 7.0}),

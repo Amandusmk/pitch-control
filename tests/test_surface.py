@@ -3,10 +3,9 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from pitchcontrol.surface import frame_control, make_grid
+from pitchcontrol.surface import PUBLISHED_PARAMETERS, frame_control, make_grid
 
-# Illustrative test values only; the project's real parameters are chosen separately.
-PARAMS = {"v_max": 5.0, "t_react": 0.7, "sigma": 0.45, "lambda_per_s": 4.3, "ball_time": 0.0}
+PARAMS = {**PUBLISHED_PARAMETERS, "ball_time": 0.0}
 
 
 def test_grid_is_cell_centred_and_covers_the_pitch():

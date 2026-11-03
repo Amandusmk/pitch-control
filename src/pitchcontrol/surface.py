@@ -11,6 +11,12 @@ from pitchcontrol.coords import PITCH_LENGTH_M, PITCH_WIDTH_M
 from pitchcontrol.intercept import time_to_intercept
 from pitchcontrol.pitch import team_positions
 
+# Parameters of Spearman (2018) as used in the published tutorial implementation. Adopted by
+# the project owner as the fixed, a-priori values: NOT tuned on this project's data.
+# Quoted from memory; verify against the paper before citing.
+#   v_max 5 m/s, t_react 0.7 s, sigma 0.45 s, lambda 4.3 per s (one value for all players).
+PUBLISHED_PARAMETERS = {"v_max": 5.0, "t_react": 0.7, "sigma": 0.45, "lambda_per_s": 4.3}
+
 
 def make_grid(step_m):
     """Cell-centred grid covering the 105 x 68 m pitch.
