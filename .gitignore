@@ -1,0 +1,12 @@
+.venv/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.pytest_cache/
+.coverage
+
+# Never commit data or generated outputs (Metrica sample data is not ours to redistribute)
+data/*
+!data/.gitkeep
+outputs/*
+!outputs/.gitkeep
