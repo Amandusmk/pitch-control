@@ -8,7 +8,7 @@ passes. Work in progress.
 Tracking and event data from the
 [Metrica Sports sample data](https://github.com/metrica-sports/sample-data)
 (anonymised players and teams). Credit and thanks to Metrica Sports. The data
-is not included in this repository; download it into `data/` yourself and
+is not included in this repository; download it into `data/raw/` yourself and
 check the licence in the Metrica repository.
 
 ## Setup

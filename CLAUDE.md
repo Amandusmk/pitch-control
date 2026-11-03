@@ -15,9 +15,17 @@ explain every modelling choice themselves.
 - Write a test for each module. Run tests before saying something works.
 - Look at every plot you make and check it before reporting it done.
 
+## Token economy
+- Use ECC agents/skills (tdd-guide, python-reviewer) but keep tests few and
+  important: cover the behaviour that would silently corrupt results
+  (coordinate conversion, half-time flip, velocity units, control-surface
+  invariants). Skip exhaustive or cosmetic tests.
+- Run only the tests relevant to the module being changed.
+
 ## Data
-Metrica sample data, games 1-2 (CSV, 25 fps) and game 3 (EPTS format, use
-kloppy). Anonymised players and teams. Lives in `data/` (git-ignored).
+Metrica sample data. Start with game 1 only (CSV, 25 fps); generalise to game 2
+and game 3 (EPTS, via kloppy) later. Anonymised players and teams. Lives in
+`data/` (git-ignored).
 
 ## Layout
 `src/pitchcontrol/` package, `tests/`, `scripts/`, `notebooks/`, `docs/`, `outputs/`.
