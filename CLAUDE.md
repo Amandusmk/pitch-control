@@ -2,8 +2,7 @@
 
 Goal: build a pitch control model from football tracking data, test it against
 real passes, and present it clearly. The author is a maths master's student
-applying for a student role at a football-tech company, so they must be able to
-explain every modelling choice themselves.
+and must be able to explain every modelling choice themselves.
 
 ## Rules
 - Before each modelling choice (smoothing, speeds, time-to-intercept,
