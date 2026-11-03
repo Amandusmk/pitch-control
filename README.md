@@ -11,6 +11,11 @@ Tracking and event data from the
 is not included in this repository; download it into `data/raw/` yourself and
 check the licence in the Metrica repository.
 
+## Method
+
+See [docs/modelling_decisions.md](docs/modelling_decisions.md) for every modelling choice,
+the alternatives considered, and the reasons.
+
 ## Setup
 
 ```bash
