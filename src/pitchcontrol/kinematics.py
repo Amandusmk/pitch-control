@@ -19,7 +19,8 @@ MAX_PLAYER_SPEED_MS = 12.0     # m/s; faster steps between frames are treated as
 #   window 13 frames (0.52 s): follows real acceleration but removes frame-to-frame jitter
 #     (7 keeps noise; 25 flattens real changes).
 #   order 2: a parabola matches constant acceleration, which suits sprints.
-#   gap limit 12 frames (0.48 s): beyond this extra frames filled are few.
+#   gap limit 12 frames (0.48 s): on game 1 it fills 231 of the 527 dropped frames; 25 frames
+#     would fill only 52 more.
 SMOOTHING_WINDOW_FRAMES = 13
 SMOOTHING_POLYORDER = 2
 MAX_GAP_FRAMES = 12
@@ -71,8 +72,12 @@ def fill_short_gaps(x, y, max_gap, max_speed=MAX_PLAYER_SPEED_MS, dt=FRAME_PERIO
         New (x, y) arrays. Gaps longer than max_gap, gaps whose bridge would
         need more than max_speed (the player "jumped"), and NaNs at either end
         stay NaN: we never extrapolate and never draw a line across a jump.
+        A frame with only x or only y missing is treated as fully missing.
     """
     out_x, out_y = np.array(x, dtype=float), np.array(y, dtype=float)
+    half_missing = np.isnan(out_x) | np.isnan(out_y)
+    out_x[half_missing] = np.nan
+    out_y[half_missing] = np.nan
     starts, ends = _true_runs(np.isnan(out_x) | np.isnan(out_y))
     for start, end in zip(starts, ends):
         if start == 0 or end == len(out_x) or end - start > max_gap:
@@ -95,7 +100,7 @@ def smooth_and_differentiate(x, y, window, polyorder, dt=FRAME_PERIOD_S, trim_ed
 
     Args:
         x, y: positions in metres (NaN = missing).
-        window: odd number of frames in the fitting window (7 frames = 0.28 s).
+        window: odd number of frames in the fitting window (project default 13 = 0.52 s).
         polyorder: polynomial degree, less than window.
         dt: seconds between frames.
         trim_edges: if True, set the first and last window//2 frames of every
@@ -127,6 +132,21 @@ def smooth_and_differentiate(x, y, window, polyorder, dt=FRAME_PERIOD_S, trim_ed
     return tuple(results)
 
 
+def player_names(tracking):
+    """Return player prefixes such as 'Home_Player8' for every player x/y column pair."""
+    return [c[:-2] for c in tracking.columns
+            if c.endswith("_x") and c.startswith(("Home_", "Away_"))]
+
+
+def _check_regular_frames(time_s, periods, dt=FRAME_PERIOD_S):
+    """Raise ValueError unless every half has evenly spaced frames (dt seconds apart)."""
+    for period in np.unique(periods):
+        steps = np.diff(time_s[periods == period])
+        if not np.allclose(steps, dt, atol=1e-6):
+            raise ValueError(f"period {period}: frames are not evenly {dt} s apart "
+                             "(missing rows or unsorted input)")
+
+
 def add_kinematics(tracking, window=SMOOTHING_WINDOW_FRAMES, polyorder=SMOOTHING_POLYORDER,
                    max_gap=MAX_GAP_FRAMES, max_speed=MAX_PLAYER_SPEED_MS):
     """Return a copy of the tracking table with player velocities added (m/s).
@@ -141,9 +161,9 @@ def add_kinematics(tracking, window=SMOOTHING_WINDOW_FRAMES, polyorder=SMOOTHING
         tracking: table from io_metrica.load_tracking (metres, 25 Hz).
         window, polyorder, max_gap, max_speed: see module constants.
     """
-    players = [c[:-2] for c in tracking.columns
-               if c.endswith("_x") and c.startswith(("Home_", "Away_"))]
+    players = player_names(tracking)
     periods = tracking["period"].to_numpy()
+    _check_regular_frames(tracking["time_s"].to_numpy(), periods)
     velocities = {}
     for player in players:
         vx = np.full(len(tracking), np.nan)
@@ -157,4 +177,7 @@ def add_kinematics(tracking, window=SMOOTHING_WINDOW_FRAMES, polyorder=SMOOTHING
             _, _, vx[rows], vy[rows] = smooth_and_differentiate(x, y, window, polyorder,
                                                                 trim_edges=True)
         velocities[player + "_vx"], velocities[player + "_vy"] = vx, vy
+    clash = [c for c in velocities if c in tracking.columns]
+    if clash:
+        raise ValueError(f"velocity columns already exist (applied twice?): {clash[:3]}")
     return pd.concat([tracking, pd.DataFrame(velocities, index=tracking.index)], axis=1)

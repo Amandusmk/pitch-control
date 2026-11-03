@@ -19,14 +19,16 @@ sys.path.insert(0, str(ROOT / "src"))
 from pitchcontrol.io_metrica import load_tracking  # noqa: E402
 from pitchcontrol.kinematics import (  # noqa: E402
     FRAME_PERIOD_S,
+    MAX_GAP_FRAMES,
+    SMOOTHING_POLYORDER,
+    SMOOTHING_WINDOW_FRAMES,
     drop_implausible_steps,
     fill_short_gaps,
     smooth_and_differentiate,
 )
 
 WINDOWS = (7, 13, 25)          # frames; 0.28 s, 0.52 s, 1.00 s
-POLYORDER = 2
-ILLUSTRATIVE_MAX_GAP = 12      # frames (0.48 s); the real value is still to be chosen
+POLYORDER = SMOOTHING_POLYORDER
 GAP_LIMITS = (5, 12, 25)
 HALF_SPAN_S = 10.0
 ZOOM_S = 3.0
@@ -34,7 +36,7 @@ ZOOM_S = 3.0
 
 def player_columns(tracking):
     """Return names like 'Home_Player8' for every player column pair."""
-    return [c[:-2] for c in tracking.columns if c.endswith("_x") and c.startswith(("Home", "Away"))]
+    return [c[:-2] for c in tracking.columns if c.endswith("_x") and c.startswith(("Home_", "Away_"))]
 
 
 def cleaned_xy(period_df, player, max_gap):
@@ -69,8 +71,9 @@ def find_fast_stretch(tracking):
     for player in player_columns(tracking):
         if not player.startswith("Home"):
             continue
-        x, y = cleaned_xy(half, player, ILLUSTRATIVE_MAX_GAP)
-        _, _, vx, vy = smooth_and_differentiate(x, y, 13, POLYORDER)
+        x, y = cleaned_xy(half, player, MAX_GAP_FRAMES)
+        _, _, vx, vy = smooth_and_differentiate(x, y, SMOOTHING_WINDOW_FRAMES, POLYORDER,
+                                                trim_edges=True)
         speed = np.hypot(vx, vy)
         if np.isfinite(speed).any() and np.nanmax(speed) > best[2]:
             best = (player, int(np.nanargmax(speed)), float(np.nanmax(speed)))
@@ -84,14 +87,14 @@ def main():
     player, peak = find_fast_stretch(tracking)
     half = tracking[tracking["period"] == 1]
     t = half["time_s"].to_numpy()
-    x, y = cleaned_xy(half, player, ILLUSTRATIVE_MAX_GAP)
+    x, y = cleaned_xy(half, player, MAX_GAP_FRAMES)
     raw_speed = np.hypot(np.diff(x), np.diff(y)) / FRAME_PERIOD_S
 
     fig, axes = plt.subplots(2, 1, figsize=(11, 8.5))
     for ax, span in zip(axes, (HALF_SPAN_S, ZOOM_S / 2)):
         ax.plot(t[1:], raw_speed, color="0.6", linewidth=1, label="raw differences")
         for window in WINDOWS:
-            _, _, vx, vy = smooth_and_differentiate(x, y, window, POLYORDER)
+            _, _, vx, vy = smooth_and_differentiate(x, y, window, POLYORDER, trim_edges=True)
             ax.plot(t, np.hypot(vx, vy), linewidth=1.6,
                     label=f"Savitzky-Golay, window {window} frames ({window * FRAME_PERIOD_S:.2f} s)")
         ax.set_xlim(t[peak] - span, t[peak] + span)

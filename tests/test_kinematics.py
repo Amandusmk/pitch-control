@@ -82,3 +82,11 @@ def test_add_kinematics_adds_player_velocities_per_half_and_leaves_the_ball_alon
         assert h[6:-6] == pytest.approx(2.0)
     assert "ball_vx" not in out.columns
     assert "Home_Player1_vx" not in tracking.columns         # input not mutated
+
+
+def test_fill_short_gaps_limit_is_inclusive():
+    x = np.array([0.0, np.nan, np.nan, 0.3, np.nan, np.nan, np.nan, 0.7])
+    y = np.where(np.isnan(x), np.nan, 0.0)
+    out, _ = fill_short_gaps(x, y, max_gap=2)
+    assert not np.isnan(out[1:3]).any()      # gap of exactly 2 frames is filled
+    assert np.isnan(out[4:7]).all()          # gap of 3 frames is not
