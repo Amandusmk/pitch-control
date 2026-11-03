@@ -13,10 +13,13 @@ from pitchcontrol.coords import PITCH_LENGTH_M, PITCH_WIDTH_M
 from pitchcontrol.intercept import time_to_intercept
 from pitchcontrol.pitch import team_positions
 
-# Parameters of Spearman (2018) as used in the published tutorial implementation. Adopted by
-# the project owner as the fixed, a-priori values: NOT tuned on this project's data.
-# Quoted from memory; verify against the paper before citing.
+# Parameters of Spearman (2018) as set in `default_model_params` of the public tutorial
+# implementation (Friends-of-Tracking-Data-FoTD/LaurieOnTracking, Metrica_PitchControl.py),
+# checked against that code. Adopted by the project owner as the fixed, a-priori values:
+# NOT tuned on this project's data.
 #   v_max 5 m/s, t_react 0.7 s, sigma 0.45 s, lambda 4.3 per s (one value for all players).
+# Differences from the tutorial: it gives goalkeepers 3x lambda, and it assumes a 15 m/s
+# ball; here lambda is shared by all players and the real pass flight time is used.
 PUBLISHED_PARAMETERS = MappingProxyType(
     {"v_max": 5.0, "t_react": 0.7, "sigma": 0.45, "lambda_per_s": 4.3})
 

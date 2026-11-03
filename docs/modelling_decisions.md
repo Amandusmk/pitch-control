@@ -54,10 +54,12 @@ Data: Metrica Sports sample data (anonymised), game 1 first.
 
 | Parameter | Value | Source |
 |---|---|---|
-| v_max | 5 m/s | Spearman (2018) as used in the published tutorial implementation (quoted from memory; verify before citing) |
+| v_max | 5 m/s | Spearman (2018), as set in the public tutorial implementation (`default_model_params` in Friends-of-Tracking-Data-FoTD/LaurieOnTracking, checked against the code) |
 | t_react | 0.7 s | same |
 | sigma | 0.45 s | same |
-| lambda | 4.3 per s, one value for all players | same (the published model uses different values for attacking and defending teams; this project uses one) |
+| lambda | 4.3 per s, one value for all players | same. The tutorial also gives goalkeepers 3x lambda and sets kappa_def = 1 (the paper has 1.72); this project uses one lambda for everyone |
+
+The time-to-intercept formula is the tutorial's. Differences from it: one lambda for all players (no 3x goalkeeper factor), and the real pass flight time instead of an assumed 15 m/s ball speed.
 
 Adopted a priori, **not tuned on this project's data**. The observed speeds (99th percentile
 5.3-7.0 m/s for outfield players) show v_max = 5 is below what players reach 1-5% of the
