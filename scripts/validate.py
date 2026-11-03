@@ -17,8 +17,8 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from pitchcontrol.io_metrica import load_events, load_tracking  # noqa: E402
-from pitchcontrol.kinematics import add_kinematics  # noqa: E402
+from pitchcontrol.io_metrica import load_game  # noqa: E402
+from pitchcontrol.kinematics import FRAME_PERIOD_S, add_kinematics  # noqa: E402
 from pitchcontrol.surface import PUBLISHED_PARAMETERS  # noqa: E402
 from pitchcontrol.validation import (  # noqa: E402
     auc,
@@ -29,6 +29,10 @@ from pitchcontrol.validation import (  # noqa: E402
     passing_team_control,
 )
 
+LOOK_BACK_FRAMES = 6   # half the smoothing window (13): the velocity then uses no frame after the kick
+CAVEAT = ("NOTE: a pass's end point is where the ball ended up, so it partly reveals the outcome\n"
+          "(for failed passes it is where the opponent took the ball, not the intended target).\n"
+          "AUC here is therefore optimistic; compare models and settings, not absolute values.")
 V_MAX_GRID = (5.0, 6.0, 7.0)
 T_REACT_GRID = (0.3, 0.7)
 METHODS = ("spearman", "baseline")
@@ -56,11 +60,17 @@ def print_main(results, passes):
     """Print sample sizes, the constant-rate Brier reference and both models' metrics."""
     labels = results["spearman"][1]
     rate = labels.mean()
-    print(f"passes scored: {len(labels)} ({int(labels.sum())} completed, "
+    print(f"passes scored: {len(labels)} of {len(passes)} ({int(labels.sum())} completed, "
           f"{int((1 - labels).sum())} failed; completion rate {rate:.3f})")
     print(f"Brier of always predicting the completion rate: {rate * (1 - rate):.3f}")
     for method in METHODS:
         print(f"  {method:9s} {summarise(*results[method])}")
+
+
+def look_back(passes, frames):
+    """Evaluate each pass `frames` earlier: state from before the kick, flight time lengthened."""
+    return passes.assign(start_frame=passes["start_frame"] - frames,
+                         flight_s=passes["flight_s"] + frames * FRAME_PERIOD_S)
 
 
 def print_sensitivity(tracking, passes):
@@ -101,17 +111,19 @@ def plot_results(results, out):
 def main(game_dir):
     """Run the whole validation for one game directory."""
     game_dir = Path(game_dir)
-    events_path = next(game_dir.glob("*RawEventsData.csv"))
-    tracking = add_kinematics(load_tracking(game_dir)).set_index("frame")
-    events = load_events(events_path)
+    tracking, events = load_game(game_dir)
+    tracking = add_kinematics(tracking).set_index("frame")
     passes = build_pass_table(events)
     print(f"== {game_dir.name}: main definition (open-play passes vs interception losses) ==")
     results = score_passes(tracking, passes, PUBLISHED_PARAMETERS)
     print_main(results, passes)
     print_sensitivity(tracking, passes)
+    print(f"\n== no look-ahead: state taken {LOOK_BACK_FRAMES} frames before the kick ==")
+    print_main(score_passes(tracking, look_back(passes, LOOK_BACK_FRAMES), PUBLISHED_PARAMETERS), passes)
     print("\n== secondary: plain ball losses also counted as failed passes ==")
     with_plain = build_pass_table(events, include_plain_losses=True)
     print_main(score_passes(tracking, with_plain, PUBLISHED_PARAMETERS), with_plain)
+    print("\n" + CAVEAT)
     plot_results(results, ROOT / "outputs" / "figures" / f"validation_{game_dir.name}.png")
 
 

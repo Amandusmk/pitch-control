@@ -68,3 +68,27 @@ def test_control_is_read_for_the_passing_team():
         control = passing_team_control(tracking, passes, PUBLISHED_PARAMETERS, method)
         assert control.iloc[0] > 0.95       # Home passes to a point Home controls
         assert control.iloc[1] < 0.05       # the same point is nearly lost for an Away pass
+
+
+def test_inputs_that_would_silently_misattribute_passes_are_rejected():
+    tracking = pd.DataFrame({"frame": [1, 1], "period": [1, 1]}).set_index("frame")
+    passes = pd.DataFrame({"team": ["Home"], "start_frame": [1], "end_x": [0.0],
+                           "end_y": [0.0], "flight_s": [1.0], "completed": [True]})
+    with pytest.raises(ValueError):               # duplicate frames: .loc would return two rows
+        passing_team_control(tracking, passes, PUBLISHED_PARAMETERS)
+    unique = tracking.iloc[:1]
+    with pytest.raises(ValueError):               # a typo in the team must not become "Away"
+        passing_team_control(unique, passes.assign(team="home"), PUBLISHED_PARAMETERS)
+
+
+def test_a_pass_whose_frame_has_no_players_is_skipped_not_fatal():
+    tracking = pd.DataFrame({"frame": [1], "period": [1]}).set_index("frame")   # no player columns
+    passes = pd.DataFrame({"team": ["Home"], "start_frame": [1], "end_x": [0.0],
+                           "end_y": [0.0], "flight_s": [1.0], "completed": [True]})
+    scores = passing_team_control(tracking, passes, PUBLISHED_PARAMETERS)
+    assert scores.isna().all()
+
+
+def test_bootstrap_of_a_single_class_sample_is_nan_not_an_error():
+    low, high = bootstrap_ci(auc, np.array([0.9, 0.8]), np.array([1, 1]), n_boot=20)
+    assert np.isnan(low) and np.isnan(high)

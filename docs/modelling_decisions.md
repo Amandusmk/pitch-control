@@ -8,7 +8,9 @@ Data: Metrica Sports sample data (anonymised), game 1 first.
 
 - Pitch 105 x 68 m, origin at the centre spot, x along the length, y pointing up.
 - Metrica coordinates (0-1, y pointing down) are converted to metres with y flipped.
-- The second half is rotated 180 degrees so the home team attacks +x in both halves.
+- Halves are rotated 180 degrees so the home team attacks +x in every half. Which halves need
+  rotating is detected from the data (the home goalkeeper's side), because games differ:
+  in game 1 the home team defends the left goal in the first half, in game 2 the right.
 
 ## 1. Smoothing and velocities
 
@@ -69,3 +71,13 @@ reasonable. This is tested, not assumed, in the sensitivity analysis below.
 - Independent replication with the same fixed parameters on game 2, then game 3 (a different
   file format, read with kloppy).
 - If any parameter is ever tuned, tune on game 1 and report only on games 2 and 3.
+
+## 7. Validation design
+
+| | |
+|---|---|
+| Passes | Completed: open-play `PASS` events (goal kicks and clearances excluded). Failed: `BALL LOST` events whose subtype contains INTERCEPTION (goal-kick interceptions excluded). Secondary check: plain `BALL LOST` events also counted as failed. Failed passes are not labelled as passes in Metrica's events; this is how they are recovered. |
+| Measurement | The model is evaluated at the frame where the pass is hit, at the pass end point, with ball arrival time = the real flight time (frames x 0.04 s). Score = passing team's control share, mine / (mine + theirs). |
+| Metrics | AUC, Brier score and a calibration table with 95% bootstrap intervals, for the Spearman model and the logistic baseline. The baseline's logistic scale is sigma x sqrt(3) / pi, so it has no free parameter of its own. |
+| Robustness | Sensitivity grid (v_max in {5, 6, 7} x t_react in {0.3, 0.7}); a no-look-ahead variant (state taken 6 frames before the kick, because the centred velocity filter otherwise uses about 0.24 s of frames after it); the plain-loss definition; replication on a second game. |
+| Limitation | A pass's end point is where the ball ended up, so it partly reveals the outcome. For failed passes it is where the opponent took the ball, not the intended target (not recorded). The AUC is therefore optimistic: compare models and settings, not absolute values. |

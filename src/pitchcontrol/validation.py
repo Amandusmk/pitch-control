@@ -41,7 +41,8 @@ def build_pass_table(events, include_plain_losses=False):
     subtype = events["subtype"].fillna("")
     completed = (events["type"] == "PASS") & ~subtype.isin(NOT_OPEN_PLAY)
     lost = events["type"] == "BALL LOST"
-    failed = lost & subtype.str.contains("INTERCEPTION") & ~subtype.str.contains("GOAL KICK")
+    failed = (lost & subtype.str.contains("INTERCEPTION", regex=False)
+              & ~subtype.str.contains("GOAL KICK", regex=False))
     if include_plain_losses:
         failed = failed | (lost & (subtype == ""))
     table = events.loc[completed | failed, _PASS_COLUMNS].copy()
@@ -74,20 +75,37 @@ def passing_team_control(tracking, passes, params, method="spearman"):
     """
     if method not in ("spearman", "baseline"):
         raise ValueError("method must be 'spearman' or 'baseline'")
+    if not tracking.index.is_unique:
+        raise ValueError("tracking index must have unique frames")
+    unknown = set(passes["team"]) - {"Home", "Away"}
+    if unknown:
+        raise ValueError(f"unknown team values: {unknown}")
     scores = np.full(len(passes), np.nan)
     for i, p in enumerate(passes.itertuples()):
-        if p.start_frame not in tracking.index:
-            continue
-        row, point = tracking.loc[p.start_frame], np.array([[p.end_x, p.end_y]])
+        if p.start_frame in tracking.index:
+            scores[i] = _control_share(tracking.loc[p.start_frame], p, params, method)
+    return pd.Series(scores, index=passes.index)
+
+
+def _control_share(row, p, params, method):
+    """Passing team's share at one pass end point for one frame; NaN if it cannot be computed.
+
+    NaN is returned (not raised) when no players are on the pitch in the frame or when
+    both teams have zero control, so one bad pass does not abort a whole evaluation.
+    """
+    point = np.array([[p.end_x, p.end_y]])
+    try:
         if method == "spearman":
             home, away = frame_control(row, point, params["v_max"], params["t_react"],
                                        params["sigma"], params["lambda_per_s"], p.flight_s)
         else:
             home, away = frame_baseline(row, point, params["v_max"], params["t_react"],
                                         logistic_scale(params["sigma"]))
-        mine, theirs = (home, away) if p.team == "Home" else (away, home)
-        scores[i] = (mine / (mine + theirs))[0]
-    return pd.Series(scores, index=passes.index)
+    except ValueError:
+        return float("nan")
+    mine, theirs = (home, away) if p.team == "Home" else (away, home)
+    total = mine[0] + theirs[0]
+    return float(mine[0] / total) if total > 0 else float("nan")
 
 
 def auc(scores, labels):
@@ -112,7 +130,9 @@ def brier(prob, labels):
 def calibration_table(prob, labels, n_bins=10):
     """Mean predicted probability versus observed completion rate in equal-width bins of [0, 1]."""
     prob, labels = np.asarray(prob, dtype=float), np.asarray(labels, dtype=float)
-    bins = np.minimum((prob * n_bins).astype(int), n_bins - 1)
+    if not np.isfinite(prob).all():
+        raise ValueError("prob must be finite; drop NaN scores first")
+    bins = np.minimum((np.clip(prob, 0.0, 1.0) * n_bins).astype(int), n_bins - 1)
     rows = [{"bin": b, "mean_predicted": prob[bins == b].mean(),
              "observed_rate": labels[bins == b].mean(), "count": int((bins == b).sum())}
             for b in range(n_bins) if (bins == b).any()]
@@ -126,11 +146,16 @@ def bootstrap_ci(metric, prob, labels, n_boot=1000, seed=0, level=0.95):
     (e.g. a single class) are skipped. Returns (low, high).
     """
     prob, labels = np.asarray(prob, dtype=float), np.asarray(labels)
+    if len(prob) == 0:
+        return float("nan"), float("nan")
     rng = np.random.default_rng(seed)
     values = []
     for _ in range(n_boot):
         idx = rng.integers(0, len(prob), len(prob))
         values.append(metric(prob[idx], labels[idx]))
+    values = np.array(values, dtype=float)
+    if np.isnan(values).all():
+        return float("nan"), float("nan")
     tail = 100 * (1 - level) / 2
     low, high = np.nanpercentile(values, [tail, 100 - tail])
     return float(low), float(high)
