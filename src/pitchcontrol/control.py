@@ -17,7 +17,11 @@ spearman_control (the project's model, Spearman 2018, "Beyond Expected Goals"):
 baseline_control (the simple comparison model): logistic in the difference
     between each team's fastest arrival times.
 
-Numerical assumption: first-order Euler integration with step dt seconds.
+Numerical scheme: time steps of dt seconds with f_i held constant inside a step. Then
+the uncontrolled fraction R decays exactly as R * exp(-S * dt), where S = sum_i f_i *
+lambda_i, and the control gained is shared between players in proportion to f_i *
+lambda_i. This exponential step never overshoots full control or goes negative, for any
+dt (a plain Euler step does blow up with 22 players, since dt * S can exceed 1).
 No default values are given for sigma, lambda or ball_time: they are modelling
 choices made elsewhere.
 """
@@ -42,8 +46,6 @@ def _validate(arrival_times, is_team_a, sigma, lambdas, dt):
         raise ValueError("arrival_times must be finite; drop players who are off the pitch")
     if sigma <= 0 or dt <= 0 or np.any(lambdas <= 0):
         raise ValueError("sigma, dt and lambdas must be positive")
-    if dt * lambdas.max() >= 1.0:
-        raise ValueError("dt * lambda >= 1: the Euler step is unstable, reduce dt")
 
 
 def spearman_control(arrival_times, is_team_a, sigma, lambdas, ball_time, dt=DEFAULT_DT_S):
@@ -56,7 +58,7 @@ def spearman_control(arrival_times, is_team_a, sigma, lambdas, ball_time, dt=DEF
         lambdas: (N,) control rate per player, in 1/s.
         ball_time: time in seconds at which the ball reaches the points (0 for a
             static picture without a pass).
-        dt: Euler step in seconds.
+        dt: integration time step in seconds.
 
     Returns:
         (control_a, control_b): two (G,) arrays in [0, 1]. They sum to at most 1;
@@ -74,7 +76,11 @@ def spearman_control(arrival_times, is_team_a, sigma, lambdas, ball_time, dt=DEF
         residual = 1.0 - control.sum(axis=0)
         if residual.max() < RESIDUAL_TOLERANCE:
             break
-        control = control + dt * residual * _arrival_probability(t, tau, sigma) * rate
+        weight = _arrival_probability(t, tau, sigma) * rate        # f_i * lambda_i, 1/s
+        total_rate = weight.sum(axis=0)                            # S, 1/s
+        gained = residual * (1.0 - np.exp(-total_rate * dt))       # fraction controlled this step
+        share = np.divide(weight, total_rate, out=np.zeros_like(weight), where=total_rate > 0)
+        control = control + share * gained
         t += dt
     return control[is_team_a].sum(axis=0), control[~is_team_a].sum(axis=0)
 

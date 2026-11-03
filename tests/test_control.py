@@ -28,11 +28,18 @@ def test_a_team_with_no_rival_gets_the_whole_point_and_the_other_gets_nothing():
     assert p_a[0] == pytest.approx(1.0, abs=0.02)
 
 
-def test_unstable_time_step_is_rejected():
-    # dt * lambda >= 1 would make the Euler update overshoot past full control.
-    with pytest.raises(ValueError):
-        spearman_control(np.array([[1.0], [1.0]]), np.array([True, False]), SIGMA_S,
-                         np.array([30.0, 30.0]), 0.0, dt=0.04)
+def test_full_teams_never_overshoot_full_control():
+    # 22 players all arrive together: total rate is 22 * lambda, so dt * rate is far above 1.
+    # A plain Euler step overshoots and blows up here; the exponential step must not.
+    is_a = np.array([True] * 11 + [False] * 11)
+    arrival = np.full((22, 3), 2.0)
+    arrival[11:, 2] = 1.0                          # point 2: team B clearly earlier
+    lambdas = np.full(22, LAMBDA_PER_S)
+    p_a, p_b = spearman_control(arrival, is_a, SIGMA_S, lambdas, 0.0)
+    assert ((p_a >= 0) & (p_b >= 0) & (p_a + p_b <= 1.0 + 1e-9)).all()
+    assert p_a[0] == pytest.approx(p_b[0], abs=1e-9)   # tie: teams equal by symmetry
+    assert p_a[0] + p_b[0] > 0.99                       # integration stops at 99% controlled
+    assert p_b[2] > 0.9
 
 
 def test_baseline_is_even_when_tied_and_decisive_when_one_team_is_far_faster():
